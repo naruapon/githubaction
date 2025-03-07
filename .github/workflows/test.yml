@@ -2,7 +2,7 @@ name: Simple Workflow
 on:
   push:
     branches:
-      - production
+      - main
 jobs:
   simple_job:
     runs-on: ubuntu-latest
