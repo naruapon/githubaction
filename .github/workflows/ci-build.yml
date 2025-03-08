@@ -3,7 +3,7 @@ name: 'build docker image'
 on:
   push:
     tags:
-      - '*'  # Trigger บนทุก tag ที่ push
+      - 'v3000'  # Trigger บนทุก tag ที่ push
 
 jobs:
   release-docker-image-job:

@@ -1,0 +1,52 @@
+name: 'build docker image'
+
+on:
+  push:
+    tags:
+      - '*'  # Trigger บนทุก tag ที่ push
+
+jobs:
+  release-docker-image-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Extract tag name
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Verify extracted tag
+        run: echo "Using TAG_NAME=${{ env.TAG_NAME }}"
+
+      - name: Build and push Docker image
+        uses: mr-smithers-excellent/docker-build-push@v6
+        with:
+          image: githubaction  # ไม่ต้องใส่ naruapon ซ้ำ
+          registry: ghcr.io/naruapon
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: ${{ env.TAG_NAME }}, latest
+
+  auto-deploy-docker-job:
+    needs: release-docker-image-job
+    runs-on: ubuntu-latest
+    env:
+      CONTAINER_NAME: 'np-vue-app'
+      DOCKER_IMAGE_URL: 'ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{  github.ref_name }}'
+    steps:
+    - name: executing remote ssh commands using password
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: '159.223.41.181'  #production url: 159.223.41.181:9003
+        username: 'root'
+        password: '$Admin_1jj395qu'
+        port: '22'
+        script: |
+          docker logout ghcr.io
+          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}  ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
+          docker rm -f ${{ env.CONTAINER_NAME }} || true
+          docker pull ${{ env.DOCKER_IMAGE_URL }}
+          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 9003:80 ${{ env.DOCKER_IMAGE_URL }}
