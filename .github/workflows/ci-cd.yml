@@ -30,24 +30,33 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: ${{ env.TAG_NAME }}, latest
 
+jobs:
   deploy-github-pages:
-    needs: release-docker-image-job  # รอให้ job ด้านบนเสร็จก่อน
+    needs: release-docker-image-job  # รอให้ job สร้าง Docker Image เสร็จก่อน
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Logout from GitHub Container Registry (GHCR)
-        run: docker logout ghcr.io
+        run: docker logout ghcr.io || true
 
-      - name: Login to GHCR with specific repository
+      - name: Login to GHCR
         run: |
-          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
+          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
 
-      - name: Pull Docker image
-        run: docker pull ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
+      - name: Set environment variables
+        run: |
+          echo "CONTAINER_NAME=my_container" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE_URL=ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest" >> $GITHUB_ENV
+
+      - name: Stop and remove old container (if exists)
+        run: |
+          docker ps -q --filter "name=${{ env.CONTAINER_NAME }}" | grep -q . && docker stop ${{ env.CONTAINER_NAME }} && docker rm -f ${{ env.CONTAINER_NAME }} || true
+
+      - name: Pull Docker image from GHCR
+        run: docker pull ${{ env.DOCKER_IMAGE_URL }}
 
       - name: Run Docker container
         run: |
-          docker rm -f ${{ env.CONTAINER_NAME }} || true
-          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 9003:80 ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
+          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 9003:80 ${{ env.DOCKER_IMAGE_URL }}
