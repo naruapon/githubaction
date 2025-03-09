@@ -1,9 +1,9 @@
-name: 'build and deploy docker image'
+name: Deploy Vue App via Docker
 
 on:
   push:
     tags:
-      - '*'  # Trigger เมื่อ push tag ใด ๆ
+      - '*'  # Trigger เมื่อมีการ push tag ใหม่
 
 jobs:
   release-docker-image-job:
@@ -12,23 +12,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Login to GitHub Container Registry (GHCR)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Extract tag name
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-      - name: Verify extracted tag
-        run: echo "Using TAG_NAME=${{ env.TAG_NAME }}"
-
       - name: Build and push Docker image
-        uses: mr-smithers-excellent/docker-build-push@v6
-        with:
-          image: githubaction  # ไม่ต้องใส่ naruapon ซ้ำ
-          registry: ghcr.io/naruapon
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          tags: ${{ env.TAG_NAME }}, latest
+        run: |
+          docker build -t ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ env.TAG_NAME }} .
+          docker tag ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ env.TAG_NAME }} ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
+          docker push ghcr.io/${{ github.actor }}/${{ github.event.repository.name }} --all-tags
 
   deploy-github-pages:
     needs: release-docker-image-job  # รอให้ job สร้าง Docker Image เสร็จก่อน
@@ -46,7 +40,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "CONTAINER_NAME=my_container" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=vue_container" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_URL=ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest" >> $GITHUB_ENV
 
       - name: Stop and remove old container (if exists)
@@ -59,3 +53,6 @@ jobs:
       - name: Run Docker container
         run: |
           docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 80:80 ${{ env.DOCKER_IMAGE_URL }}
+
+      - name: Verify Running Container
+        run: docker ps -a
