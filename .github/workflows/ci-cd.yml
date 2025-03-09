@@ -1,9 +1,9 @@
-name: 'build docker image and deploy GitHub Pages'
+name: 'build and deploy docker image'
 
 on:
   push:
     tags:
-      - '*'  # Trigger เมื่อมีการ push tag ใดๆ
+      - '*'  # Trigger เมื่อ push tag ใด ๆ
 
 jobs:
   release-docker-image-job:
@@ -24,37 +24,30 @@ jobs:
       - name: Build and push Docker image
         uses: mr-smithers-excellent/docker-build-push@v6
         with:
-          image: githubaction
+          image: githubaction  # ไม่ต้องใส่ naruapon ซ้ำ
           registry: ghcr.io/naruapon
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: ${{ env.TAG_NAME }}, latest
 
   deploy-github-pages:
-    needs: release-docker-image-job  # รอให้ build และ push Docker image สำเร็จก่อน
+    needs: release-docker-image-job  # รอให้ job ด้านบนเสร็จก่อน
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Logout from GitHub Container Registry (GHCR)
+        run: docker logout ghcr.io
 
-      - name: Build static site
+      - name: Login to GHCR with specific repository
         run: |
-          mkdir -p public
-          echo "<h1>GitHub Pages Deployed Successfully</h1>" > public/index.html
+          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: public
+      - name: Pull Docker image
+        run: docker pull ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Run Docker container
+        run: |
+          docker rm -f ${{ env.CONTAINER_NAME }} || true
+          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 9003:80 ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
