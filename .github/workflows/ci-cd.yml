@@ -24,19 +24,18 @@ jobs:
           docker tag ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ env.TAG_NAME }} ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
           docker push ghcr.io/${{ github.actor }}/${{ github.event.repository.name }} --all-tags
 
-  deploy-github-pages:
-    needs: release-docker-image-job  # รอให้ job สร้าง Docker Image เสร็จก่อน
+  deploy-docker:
+    needs: release-docker-image-job
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Logout from GitHub Container Registry (GHCR)
+      - name: Logout from GHCR
         run: docker logout ghcr.io || true
 
       - name: Login to GHCR
-        run: |
-          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
+        run: docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
 
       - name: Set environment variables
         run: |
@@ -47,7 +46,7 @@ jobs:
         run: |
           docker ps -q --filter "name=${{ env.CONTAINER_NAME }}" | grep -q . && docker stop ${{ env.CONTAINER_NAME }} && docker rm -f ${{ env.CONTAINER_NAME }} || true
 
-      - name: Pull Docker image from GHCR
+      - name: Pull Docker image
         run: docker pull ${{ env.DOCKER_IMAGE_URL }}
 
       - name: Run Docker container
@@ -56,3 +55,4 @@ jobs:
 
       - name: Verify Running Container
         run: docker ps -a
+

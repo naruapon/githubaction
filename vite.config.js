@@ -15,5 +15,5 @@ export default defineConfig({
 })
 
 module.exports = {
-  publicPath: '/githubaction/'
+  publicPath: process.env.NODE_ENV === 'production' ? '/' : '/',
 };
