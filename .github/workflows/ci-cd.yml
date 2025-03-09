@@ -1,9 +1,9 @@
-name: Deploy Vue App via Docker
+name: 'build and deploy docker image'
 
 on:
   push:
     tags:
-      - '*'  # Trigger เมื่อมีการ push tag ใหม่
+      - '*'  # Trigger เมื่อ push tag ใด ๆ
 
 jobs:
   release-docker-image-job:
@@ -12,47 +12,50 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry (GHCR)
+      - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Extract tag name
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-      - name: Build and push Docker image
-        run: |
-          docker build -t ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ env.TAG_NAME }} .
-          docker tag ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ env.TAG_NAME }} ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
-          docker push ghcr.io/${{ github.actor }}/${{ github.event.repository.name }} --all-tags
+      - name: Verify extracted tag
+        run: echo "Using TAG_NAME=${{ env.TAG_NAME }}"
 
-  deploy-docker:
-    needs: release-docker-image-job
+      - name: Build and push Docker image
+        uses: mr-smithers-excellent/docker-build-push@v6
+        with:
+          image: githubaction  # ไม่ต้องใส่ naruapon ซ้ำ
+          registry: ghcr.io/naruapon
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: ${{ env.TAG_NAME }}, latest
+
+  deploy-github-pages:
+    needs: release-docker-image-job  # รอให้ job สร้าง Docker Image เสร็จก่อน
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Logout from GHCR
+      - name: Logout from GitHub Container Registry (GHCR)
         run: docker logout ghcr.io || true
 
       - name: Login to GHCR
-        run: docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
+        run: |
+          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
 
       - name: Set environment variables
         run: |
-          echo "CONTAINER_NAME=vue_container" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=my_container" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_URL=ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest" >> $GITHUB_ENV
 
       - name: Stop and remove old container (if exists)
         run: |
           docker ps -q --filter "name=${{ env.CONTAINER_NAME }}" | grep -q . && docker stop ${{ env.CONTAINER_NAME }} && docker rm -f ${{ env.CONTAINER_NAME }} || true
 
-      - name: Pull Docker image
+      - name: Pull Docker image from GHCR
         run: docker pull ${{ env.DOCKER_IMAGE_URL }}
 
       - name: Run Docker container
         run: |
-          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 80:80 ${{ env.DOCKER_IMAGE_URL }}
-
-      - name: Verify Running Container
-        run: docker ps -a
-
+          docker run --restart=always -d --name ${{ env.CONTAINER_NAME }} -p 9003:80 ${{ env.DOCKER_IMAGE_URL }}
