@@ -30,7 +30,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: ${{ env.TAG_NAME }}, latest
 
-jobs:
   deploy-github-pages:
     needs: release-docker-image-job  # รอให้ job สร้าง Docker Image เสร็จก่อน
     runs-on: ubuntu-latest
