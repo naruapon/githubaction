@@ -1,4 +1,4 @@
-# ใช้ Node.js เพื่อ Build Vue.js
+# ใช้ Node.js เพื่อติดตั้งและ Build Vue.js
 FROM node:18 AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -6,9 +6,11 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+# ตรวจสอบว่าไฟล์ถูกสร้างจริง
+RUN ls -la /app/dist
+
 # ใช้ Nginx เพื่อเสิร์ฟไฟล์ Static
 FROM nginx:latest
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+WORKDIR /usr/share/nginx/html
+COPY --from=builder /app/dist .
 CMD ["nginx", "-g", "daemon off;"]

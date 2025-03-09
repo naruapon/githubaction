@@ -18,11 +18,12 @@ jobs:
       - name: Build Docker Image
         run: docker build -t ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest .
 
-      - name: Extract Static Files from Docker
+      - name: Verify Vue Build Output
         run: |
           CONTAINER_ID=$(docker create ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest)
-          docker cp $CONTAINER_ID:/dist ./dist
+          docker cp $CONTAINER_ID:/usr/share/nginx/html ./dist
           docker rm -v $CONTAINER_ID
+          ls -la ./dist
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
